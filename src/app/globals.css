@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+}
+
+:root {
+  --background: #f6f7f9;
+  --foreground: #15202b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, rgba(232, 242, 239, 0.9), rgba(246, 247, 249, 0.35) 360px),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans);
+}
+
+button,
+select {
+  font: inherit;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgba(20, 115, 140, 0.35);
+  outline-offset: 2px;
+}
+
+.result-correct {
+  border-color: #15803d;
+  background: #f0fdf4;
+}
+
+.result-partial {
+  border-color: #b45309;
+  background: #fffbeb;
+}
+
+.result-incorrect {
+  border-color: #be123c;
+  background: #fff1f2;
+}
