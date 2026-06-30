@@ -65,7 +65,7 @@ const scenarioSchema = {
         additionalProperties: false,
         required: ["response_text", "target_rating", "explanation"],
         properties: {
-          response_text: { type: "string" },
+          response_text: { type: "string", maxLength: 150 },
           target_rating: { type: "integer", enum: [1, 2, 3, 4] },
           explanation: { type: "string" },
         },
@@ -324,6 +324,9 @@ Requirements:
 - Use realistic situations involving students, patients, peers, supervisors, professors, volunteers, clinical teams, academic responsibilities, professionalism, communication, service, honesty, confidentiality, feedback, teamwork, cultural sensitivity, reliability, accountability, or conflict resolution.
 - Test judgment rather than medical knowledge.
 - Include 5 to 7 response options.
+- Response options must match the concise official exam style: short imperative action statements, usually 6 to 18 words, with a hard maximum of 24 words and 150 characters.
+- Each response option should be one direct action or decision. Do not include rationales, internal thoughts, multiple clauses, or extra background in the response_text.
+- Use plain wording like "Ask...", "Tell...", "Remind...", "Continue...", "Report...", "Apologize...", or "Decline..." when natural. Avoid verbose coaching language.
 - Include target ratings using this scale: 1 Very Ineffective, 2 Ineffective, 3 Effective, 4 Very Effective.
 - Make response choices nuanced. Wrong answers should not be cartoonishly bad, and right answers should not be obvious.
 - Avoid illegal medical advice, rare edge cases, overly dramatic scenarios, and scenarios where every strong action is simply "tell the supervisor."
@@ -339,6 +342,8 @@ Check whether:
 - It is original and not copied from AAMC.
 - It tests judgment instead of medical knowledge.
 - It has 5 to 7 response options.
+- Each response option is concise official-exam style: one direct action, usually 6 to 18 words, never more than 24 words or 150 characters.
+- Response options do not explain their own rationale or bundle multiple actions into a long sentence.
 - The target ratings are reasonably balanced and not all the same.
 - Explanations are specific and useful.
 - Differences between ratings are clear.

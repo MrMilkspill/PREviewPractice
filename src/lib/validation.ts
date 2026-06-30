@@ -13,6 +13,8 @@ const validDifficulties: DifficultyLevel[] = [
 ];
 
 const validRatings: Rating[] = [1, 2, 3, 4];
+const responseTextMaxChars = 150;
+const responseTextMaxWords = 24;
 
 type GeneratedScenario = Omit<Scenario, "source_type" | "responses"> & {
   source_type?: SourceType;
@@ -30,6 +32,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function wordCount(value: string) {
+  return value.trim().split(/\s+/).filter(Boolean).length;
 }
 
 export function parseJsonObject(raw: string): unknown {
@@ -90,6 +96,20 @@ export function normalizeScenario(
     candidate.responses.forEach((response, index) => {
       if (!isNonEmptyString(response.response_text)) {
         errors.push(`Response ${index + 1} is missing response_text.`);
+      } else {
+        const responseText = response.response_text.trim();
+
+        if (responseText.length > responseTextMaxChars) {
+          errors.push(
+            `Response ${index + 1} must be ${responseTextMaxChars} characters or fewer.`,
+          );
+        }
+
+        if (wordCount(responseText) > responseTextMaxWords) {
+          errors.push(
+            `Response ${index + 1} must be ${responseTextMaxWords} words or fewer.`,
+          );
+        }
       }
 
       if (!validRatings.includes(response.target_rating)) {
