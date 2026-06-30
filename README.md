@@ -1,9 +1,13 @@
 # PREview Scenario Drills
 
-Unofficial AAMC PREview-style scenario drilling for medical school applicants.
-The app lets users practice one original scenario at a time, submit ratings, see
-practice scoring, review explanations, track performance locally, export history
-as CSV, and generate unlimited original AI scenarios through a backend route.
+Unofficial PREview practice workspace for medical school applicants. The app has
+two official AAMC PREview practice-exam companion sections plus an original AI
+scenario drill mode.
+
+The official companion sections do not reproduce AAMC scenarios, response
+choices, rationales, or answer keys. They link to the official AAMC PDFs and
+provide timing, scenario navigation, blank rating slots, local progress tracking,
+optional self-check target entry, and CSV export.
 
 ## Setup
 
@@ -40,6 +44,27 @@ The route requests strict JSON, validates the scenario, asks the model to
 self-check originality and quality, and retries once if validation or the quality
 check fails.
 
+## Official exam companion sections
+
+The app includes:
+
+- `PREview Exam 1`
+- `PREview Exam 2`
+
+Each companion section provides:
+
+- A link to the official AAMC practice exam listing
+- 30 scenario navigation slots
+- 186 blank response-rating slots
+- Optional 75-minute timer
+- Local rating persistence
+- Optional target-rating entry from your own official AAMC answer key
+- Practice scoring from user-entered targets only
+
+The app intentionally leaves official content in the official PDF. If a scenario
+in the PDF has a different response count than the default blank slots shown for
+that scenario, adjust the response-slot count with the `-` and `+` controls.
+
 ## Practice scoring
 
 This app uses practice scoring, not official AAMC scoring:
@@ -54,16 +79,14 @@ The maximum score is the number of response items in that scenario.
 
 History is stored in browser `localStorage`:
 
-- Completed scenarios
-- Score and percentage
-- Date completed
-- Competency and difficulty
-- Preloaded vs AI-generated source
-- Missed responses, user rating, target rating, and points earned
+- Official companion exam progress
+- User ratings for official companion response slots
+- Optional user-entered target ratings from official AAMC answer keys
+- AI-generated drill attempts
+- Practice scores, dates, competencies, and CSV export rows
 
-The dashboard shows average score, completed count, total responses, best and
-weakest competencies, recent attempts, missed-response review, source breakdown,
-CSV export, and clear-history controls.
+The dashboard shows official companion progress, optional self-check progress,
+AI drill history, CSV export, and clear-history controls.
 
 ## Reference materials
 

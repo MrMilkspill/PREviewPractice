@@ -117,7 +117,6 @@ export function normalizeScenario(
     competency_tested: candidate.competency_tested!.trim(),
     difficulty_level: candidate.difficulty_level as DifficultyLevel,
     source_type:
-      candidate.source_type === "preloaded" ||
       candidate.source_type === "ai_generated"
         ? candidate.source_type
         : fallbackSource,

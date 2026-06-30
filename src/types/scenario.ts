@@ -13,7 +13,7 @@ export type DifficultyLevel =
   | "hard"
   | "aamc_like_mixed";
 
-export type SourceType = "preloaded" | "ai_generated";
+export type SourceType = "ai_generated";
 
 export const generationCategories = [
   "Academic responsibility",

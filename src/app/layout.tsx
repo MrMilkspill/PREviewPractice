@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "PREview Scenario Drills",
   description:
-    "Unofficial AAMC PREview-style scenario practice with scoring, explanations, progress tracking, and AI-generated drills.",
+    "Unofficial PREview official-exam companion with timing, local rating tracking, and original AI-generated drills.",
   icons: {
     icon: "/favicon.svg",
   },

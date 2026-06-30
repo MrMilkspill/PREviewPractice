@@ -14,4 +14,4 @@ Recommended private review process:
    checks. Do not include official AAMC PDF content in the app. Use it only as
    private reference material during development to understand format, reasoning
    style, and difficulty.
-4. Keep generated and preloaded app scenarios fully original.
+4. Keep generated app scenarios fully original.
