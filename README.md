@@ -54,16 +54,16 @@ The app includes:
 Each companion section provides:
 
 - A link to the official AAMC practice exam listing
-- 30 scenario navigation slots
+- PDF-matched scenario navigation slots: 30 for Exam 1 and 31 for Exam 2
 - 186 blank response-rating slots
 - Optional 75-minute timer
 - Local rating persistence
 - Optional target-rating entry from your own official AAMC answer key
 - Practice scoring from user-entered targets only
 
-The app intentionally leaves official content in the official PDF. If a scenario
-in the PDF has a different response count than the default blank slots shown for
-that scenario, adjust the response-slot count with the `-` and `+` controls.
+The app intentionally leaves official content in the official PDF. The number of
+blank response slots shown for each scenario is preconfigured from the
+user-provided official PDFs as structural metadata only.
 
 ## Practice scoring
 

@@ -57,15 +57,6 @@ interface OfficialExamState {
   targets: Record<string, Rating>;
 }
 
-function makeDefaultItemCounts(scenarioCount: number, itemCount: number) {
-  const base = Math.floor(itemCount / scenarioCount);
-  const remainder = itemCount % scenarioCount;
-
-  return Array.from({ length: scenarioCount }, (_, index) =>
-    index < remainder ? base + 1 : base,
-  );
-}
-
 function createInitialExamState(
   exam: OfficialPracticeExam,
   timerEnabled: boolean,
@@ -76,7 +67,7 @@ function createInitialExamState(
     timerRunning: timerEnabled,
     secondsRemaining: exam.durationMinutes * 60,
     startedAt: new Date().toISOString(),
-    itemCounts: makeDefaultItemCounts(exam.scenarioCount, exam.itemCount),
+    itemCounts: [...exam.itemCounts],
     ratings: {},
     targets: {},
   };
@@ -84,6 +75,57 @@ function createInitialExamState(
 
 function itemId(examId: OfficialPracticeExam["id"], scenarioIndex: number, itemIndex: number) {
   return `${examId}-s${scenarioIndex + 1}-i${itemIndex + 1}`;
+}
+
+function examItemIds(examId: OfficialPracticeExam["id"], itemCounts: number[]) {
+  return itemCounts.flatMap((count, scenarioIndex) =>
+    Array.from({ length: count }, (_, itemIndex) =>
+      itemId(examId, scenarioIndex, itemIndex),
+    ),
+  );
+}
+
+function pruneRatingsToIds(
+  ratings: Record<string, Rating>,
+  validIds: Set<string>,
+): Record<string, Rating> {
+  return Object.fromEntries(
+    Object.entries(ratings).filter(([id]) => validIds.has(id)),
+  ) as Record<string, Rating>;
+}
+
+function normalizeOfficialExamState(state: OfficialExamState): OfficialExamState {
+  const exam = officialPracticeExams.find((item) => item.id === state.examId);
+
+  if (!exam) {
+    return state;
+  }
+
+  const itemCounts = [...exam.itemCounts];
+  const validIds = new Set(examItemIds(exam.id, itemCounts));
+
+  return {
+    ...state,
+    itemCounts,
+    ratings: pruneRatingsToIds(state.ratings, validIds),
+    targets: pruneRatingsToIds(state.targets, validIds),
+  };
+}
+
+function normalizeOfficialStates(
+  states: Partial<Record<OfficialPracticeExam["id"], OfficialExamState>>,
+): Partial<Record<OfficialPracticeExam["id"], OfficialExamState>> {
+  return officialPracticeExams.reduce<
+    Partial<Record<OfficialPracticeExam["id"], OfficialExamState>>
+  >((normalized, exam) => {
+    const state = states[exam.id];
+
+    if (state) {
+      normalized[exam.id] = normalizeOfficialExamState({ ...state, examId: exam.id });
+    }
+
+    return normalized;
+  }, {});
 }
 
 function formatTime(seconds: number) {
@@ -96,7 +138,9 @@ function formatTime(seconds: number) {
 
 function examProgress(state: OfficialExamState) {
   const totalItems = state.itemCounts.reduce((total, count) => total + count, 0);
-  const answeredItems = Object.keys(state.ratings).length;
+  const answeredItems = examItemIds(state.examId, state.itemCounts).filter(
+    (id) => state.ratings[id],
+  ).length;
 
   return {
     totalItems,
@@ -106,11 +150,7 @@ function examProgress(state: OfficialExamState) {
 }
 
 function examKeyProgress(state: OfficialExamState) {
-  const allItemIds = state.itemCounts.flatMap((count, scenarioIndex) =>
-    Array.from({ length: count }, (_, itemIndex) =>
-      itemId(state.examId, scenarioIndex, itemIndex),
-    ),
-  );
+  const allItemIds = examItemIds(state.examId, state.itemCounts);
   const keyedItemIds = allItemIds.filter(
     (id) => state.ratings[id] && state.targets[id],
   );
@@ -211,7 +251,7 @@ export function PracticeApp() {
 
       if (savedOfficial) {
         try {
-          setOfficialStates(JSON.parse(savedOfficial));
+          setOfficialStates(normalizeOfficialStates(JSON.parse(savedOfficial)));
         } catch {
           setOfficialStates({});
         }
@@ -643,9 +683,9 @@ function OfficialExamCompanion({
           </h2>
           <p className="mt-3 max-w-3xl text-base leading-7 text-slate-700">
             {exam.description} Open the official AAMC PDF in another tab, then use
-            this workspace to time the section, navigate all 30 scenarios, record
-            your ratings, and optionally enter target ratings from your own official
-            answer key for self-check scoring.
+            this workspace to time the section, navigate all {exam.scenarioCount}{" "}
+            scenarios, record your ratings, and optionally enter target ratings from
+            your own official answer key for self-check scoring.
           </p>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <StatCard label="Scenarios" value={exam.scenarioCount} />
@@ -694,15 +734,6 @@ function OfficialExamCompanion({
   const keyProgress = examKeyProgress(state);
   const responseCount = state.itemCounts[selectedScenario] ?? 0;
   const isSubmitted = Boolean(state.submittedAt);
-
-  function setItemCount(nextCount: number) {
-    onUpdate((current) => {
-      const nextCounts = [...current.itemCounts];
-      nextCounts[selectedScenario] = Math.max(1, Math.min(12, nextCount));
-
-      return { ...current, itemCounts: nextCounts };
-    });
-  }
 
   return (
     <section className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
@@ -844,31 +875,6 @@ function OfficialExamCompanion({
                 </span>
               )}
             </div>
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-            <span className="font-semibold text-slate-950">
-              Response slots for this scenario:
-            </span>
-            <button
-              className="rounded border border-slate-300 bg-white px-2 py-1 font-semibold disabled:opacity-50"
-              disabled={isSubmitted}
-              onClick={() => setItemCount(responseCount - 1)}
-            >
-              -
-            </button>
-            <span className="min-w-8 text-center font-semibold">{responseCount}</span>
-            <button
-              className="rounded border border-slate-300 bg-white px-2 py-1 font-semibold disabled:opacity-50"
-              disabled={isSubmitted}
-              onClick={() => setItemCount(responseCount + 1)}
-            >
-              +
-            </button>
-            <span>
-              Adjust if the official PDF scenario has a different number of
-              responses.
-            </span>
           </div>
 
           <div className="mt-5 space-y-3">
