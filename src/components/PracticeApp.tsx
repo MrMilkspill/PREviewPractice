@@ -162,6 +162,9 @@ export function PracticeApp() {
     () => scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0],
     [scenarios, selectedScenarioId],
   );
+  const selectedScenarioIndex = scenarios.findIndex(
+    (scenario) => scenario.id === selectedScenario.id,
+  );
 
   const answeredCount = selectedScenario.responses.filter(
     (response) => ratings[response.id],
@@ -413,6 +416,8 @@ export function PracticeApp() {
           {viewMode === "practice" && (
             <ScenarioDrill
               scenario={selectedScenario}
+              scenarioNumber={selectedScenarioIndex >= 0 ? selectedScenarioIndex + 1 : 1}
+              scenarioTotal={scenarios.length}
               ratings={ratings}
               answeredCount={answeredCount}
               hardMode={hardMode}
@@ -606,6 +611,8 @@ function ScenarioList({
 
 function ScenarioDrill({
   scenario,
+  scenarioNumber,
+  scenarioTotal,
   ratings,
   answeredCount,
   hardMode,
@@ -619,6 +626,8 @@ function ScenarioDrill({
   onGenerateSimilar,
 }: {
   scenario: Scenario;
+  scenarioNumber: number;
+  scenarioTotal: number;
   ratings: Record<string, Rating>;
   answeredCount: number;
   hardMode: boolean;
@@ -635,120 +644,101 @@ function ScenarioDrill({
 
   return (
     <article className="space-y-4">
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="mb-3 flex flex-wrap gap-2">
-              <span className="rounded-md bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">
-                {scenario.competency_tested}
-              </span>
-              <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                {difficultyLabel(scenario.difficulty_level)}
-              </span>
-              <span className="rounded-md bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
-                {scenario.source_type === "ai_generated"
-                  ? "AI-generated"
-                  : "Original preloaded"}
-              </span>
-            </div>
-            <h2 className="text-2xl font-semibold text-slate-950">{scenario.title}</h2>
-            <p className="mt-3 max-w-3xl text-base leading-7 text-slate-700">
+      <section className="rounded-md border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="max-w-4xl">
+            <h2 className="text-xl font-bold text-black">
+              Scenario {scenarioNumber} of {scenarioTotal}
+            </h2>
+            <p className="mt-3 text-base leading-snug text-black">
               {scenario.scenario_text}
             </p>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 lg:w-56">
-            <p className="font-semibold text-slate-950">
-              {answeredCount} of {scenario.responses.length} rated
+            <p className="mt-5 text-base italic leading-snug text-black">
+              Please rate the effectiveness of each response to this situation.
             </p>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-              <div
-                className="h-full rounded-full bg-teal-700"
-                style={{
-                  width: `${(answeredCount / scenario.responses.length) * 100}%`,
-                }}
-              />
-            </div>
-            {!hardMode && (
-              <p className="mt-3 text-xs leading-5">
-                Rate each response independently using the 1 to 4 PREview-style
-                effectiveness scale.
-              </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2 text-xs font-semibold">
+            <span className="rounded bg-slate-100 px-2.5 py-1 text-slate-700">
+              {answeredCount}/{scenario.responses.length} rated
+            </span>
+            <span className="rounded bg-slate-100 px-2.5 py-1 text-slate-700">
+              {difficultyLabel(scenario.difficulty_level)}
+            </span>
+            {hardMode && !score && (
+              <span className="rounded bg-amber-50 px-2.5 py-1 text-amber-800">
+                Hard mode
+              </span>
             )}
           </div>
         </div>
-      </section>
 
-      <section className="space-y-3">
-        {scenario.responses.map((response, index) => {
-          const selected = ratings[response.id];
-          const result = score?.responses.find(
-            (item) => item.responseId === response.id,
-          );
+        <div className="mt-5 space-y-3">
+          {scenario.responses.map((response, index) => {
+            const selected = ratings[response.id];
+            const result = score?.responses.find(
+              (item) => item.responseId === response.id,
+            );
 
-          return (
-            <div
-              key={response.id}
-              className={`rounded-lg border bg-white p-4 shadow-sm ${
-                result?.resultLabel === "Correct"
-                  ? "result-correct"
-                  : result?.resultLabel === "Partial credit"
-                    ? "result-partial"
-                    : result?.resultLabel === "Incorrect"
-                      ? "result-incorrect"
-                      : "border-slate-200"
-              }`}
-            >
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Response {index + 1}
-                  </p>
-                  <p className="mt-1 text-base leading-7 text-slate-850">
-                    {response.response_text}
-                  </p>
-                </div>
+            return (
+              <div
+                key={response.id}
+                className={`assessment-response ${
+                  result?.resultLabel === "Correct"
+                    ? "assessment-result-correct"
+                    : result?.resultLabel === "Partial credit"
+                      ? "assessment-result-partial"
+                      : result?.resultLabel === "Incorrect"
+                        ? "assessment-result-incorrect"
+                        : ""
+                }`}
+              >
+                <p className="text-base leading-snug text-black">
+                  {index + 1}. {response.response_text}
+                </p>
                 <RatingButtons
-                  hardMode={hardMode && !score}
                   selected={selected}
                   disabled={Boolean(score)}
+                  groupName={response.id}
                   onSelect={(rating) => onRatingChange(response.id, rating)}
                 />
-              </div>
 
-              {result && (
-                <div className="mt-4 border-t border-current/10 pt-4">
-                  <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                    <ResultMetric label="Result" value={result.resultLabel} />
-                    <ResultMetric
-                      label="Your rating"
-                      value={formatRating(result.userRating)}
-                    />
-                    <ResultMetric
-                      label="Target rating"
-                      value={formatRating(result.targetRating)}
-                    />
-                    <ResultMetric
-                      label="Points"
-                      value={`${result.pointsEarned} / 1`}
-                    />
-                  </div>
-                  <p className="mt-4 text-sm leading-6 text-slate-700">
-                    <span className="font-semibold text-slate-950">Rationale: </span>
-                    {result.explanation}
-                  </p>
-                  {showWhy && (
-                    <p className="mt-3 rounded-md bg-white/70 p-3 text-sm leading-6 text-slate-700">
+                {result && (
+                  <div className="mt-3 border-l-4 border-current/20 bg-white p-3">
+                    <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                      <ResultMetric label="Result" value={result.resultLabel} />
+                      <ResultMetric
+                        label="Your rating"
+                        value={formatRating(result.userRating)}
+                      />
+                      <ResultMetric
+                        label="Target rating"
+                        value={formatRating(result.targetRating)}
+                      />
+                      <ResultMetric
+                        label="Points"
+                        value={`${result.pointsEarned} / 1`}
+                      />
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-slate-800">
                       <span className="font-semibold text-slate-950">
-                        Why this rating:{" "}
+                        Rationale:{" "}
                       </span>
-                      {adjacentRatingGuidance(result.targetRating)}
+                      {result.explanation}
                     </p>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
+                    {showWhy && (
+                      <p className="mt-3 bg-slate-50 p-3 text-sm leading-6 text-slate-800">
+                        <span className="font-semibold text-slate-950">
+                          Why this rating:{" "}
+                        </span>
+                        {adjacentRatingGuidance(result.targetRating)}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -840,35 +830,34 @@ function ScenarioDrill({
 function RatingButtons({
   selected,
   disabled,
-  hardMode,
+  groupName,
   onSelect,
 }: {
   selected?: Rating;
   disabled: boolean;
-  hardMode: boolean;
+  groupName?: string;
   onSelect: (rating: Rating) => void;
 }) {
   const ratings: Rating[] = [1, 2, 3, 4];
 
   return (
-    <div className="grid min-w-[240px] grid-cols-4 gap-1.5">
+    <div className="mt-2 grid grid-cols-4 bg-[#f4f4f4] px-2 py-1.5">
       {ratings.map((rating) => (
-        <button
+        <label
           key={rating}
-          className={`min-h-12 rounded-md border px-2 py-2 text-center text-xs font-semibold transition ${
-            selected === rating
-              ? "border-teal-700 bg-teal-700 text-white"
-              : "border-slate-300 bg-white text-slate-700 hover:border-teal-600 hover:text-teal-800"
-          } disabled:cursor-not-allowed disabled:opacity-75`}
-          disabled={disabled}
-          title={formatRating(rating)}
-          onClick={() => onSelect(rating)}
+          className="flex min-h-11 cursor-pointer flex-col items-center justify-between gap-1 text-center text-sm leading-tight text-black"
         >
-          <span className="block text-base">{rating}</span>
-          {!hardMode && (
-            <span className="block leading-tight">{ratingLabels[rating]}</span>
-          )}
-        </button>
+          <span>{ratingLabels[rating]}</span>
+          <input
+            checked={selected === rating}
+            className="h-7 w-7 cursor-pointer accent-slate-700 disabled:cursor-not-allowed"
+            disabled={disabled}
+            name={groupName}
+            title={formatRating(rating)}
+            type="radio"
+            onChange={() => onSelect(rating)}
+          />
+        </label>
       ))}
     </div>
   );
@@ -1218,7 +1207,7 @@ function MissedReview({
             <div className="mt-4">
               <RatingButtons
                 disabled={submitted}
-                hardMode={false}
+                groupName={item.reviewKey}
                 selected={answers[item.reviewKey]}
                 onSelect={(rating) =>
                   setAnswers((current) => ({

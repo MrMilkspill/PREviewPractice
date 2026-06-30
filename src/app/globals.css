@@ -53,3 +53,20 @@ input:focus-visible {
   border-color: #be123c;
   background: #fff1f2;
 }
+
+.assessment-response {
+  border-left: 4px solid transparent;
+  padding: 0.15rem 0 0.25rem;
+}
+
+.assessment-result-correct {
+  border-left-color: #15803d;
+}
+
+.assessment-result-partial {
+  border-left-color: #b45309;
+}
+
+.assessment-result-incorrect {
+  border-left-color: #be123c;
+}
