@@ -9,8 +9,29 @@ import { normalizeScenario, parseJsonObject } from "@/lib/validation";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const model = process.env.OPENAI_MODEL || process.env.AI_MODEL || "gpt-5.5";
-const apiKey = process.env.OPENAI_API_KEY || process.env.AI_API_KEY;
+type AiProvider = "openai" | "mistral";
+
+function getAiConfig() {
+  const provider = (
+    process.env.AI_PROVIDER ||
+    (process.env.MISTRAL_API_KEY ? "mistral" : "openai")
+  ).toLowerCase() as AiProvider;
+
+  if (provider === "mistral") {
+    return {
+      provider,
+      apiKey: process.env.MISTRAL_API_KEY || process.env.AI_API_KEY,
+      model:
+        process.env.MISTRAL_MODEL || process.env.AI_MODEL || "mistral-large-latest",
+    };
+  }
+
+  return {
+    provider: "openai" as const,
+    apiKey: process.env.OPENAI_API_KEY || process.env.AI_API_KEY,
+    model: process.env.OPENAI_MODEL || process.env.AI_MODEL || "gpt-5.5",
+  };
+}
 
 const scenarioSchema = {
   type: "object",
@@ -104,14 +125,42 @@ function outputTextFromResponse(payload: unknown): string {
   );
 }
 
+function outputTextFromMistralResponse(payload: unknown): string {
+  const response = payload as {
+    choices?: Array<{
+      message?: {
+        content?: string | Array<{ text?: string; type?: string }>;
+      };
+    }>;
+  };
+  const content = response.choices?.[0]?.message?.content;
+
+  if (typeof content === "string") {
+    return content.trim();
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => item.text ?? "")
+      .join("")
+      .trim();
+  }
+
+  return "";
+}
+
 async function callOpenAI({
   prompt,
   schema,
   name,
+  apiKey,
+  model,
 }: {
   prompt: string;
   schema: Record<string, unknown>;
   name: string;
+  apiKey: string;
+  model: string;
 }) {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -149,6 +198,98 @@ async function callOpenAI({
   }
 
   return parseJsonObject(text);
+}
+
+async function callMistral({
+  prompt,
+  schema,
+  name,
+  apiKey,
+  model,
+}: {
+  prompt: string;
+  schema: Record<string, unknown>;
+  name: string;
+  apiKey: string;
+  model: string;
+}) {
+  const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Return only valid JSON. The JSON must follow the provided schema exactly.",
+        },
+        {
+          role: "user",
+          content: `${prompt}\n\nJSON schema:\n${JSON.stringify(schema)}`,
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name,
+          schema,
+          strict: true,
+        },
+      },
+      temperature: name.includes("quality") ? 0 : 0.45,
+      max_tokens: name.includes("quality") ? 800 : 2600,
+    }),
+  });
+
+  const payload = (await response.json()) as unknown;
+
+  if (!response.ok) {
+    const errorPayload = payload as {
+      message?: string;
+      detail?: string;
+      error?: { message?: string };
+    };
+    throw new Error(
+      errorPayload.error?.message ||
+        errorPayload.message ||
+        errorPayload.detail ||
+        "The AI service returned an error.",
+    );
+  }
+
+  const text = outputTextFromMistralResponse(payload);
+
+  if (!text) {
+    throw new Error("The AI service returned an empty response.");
+  }
+
+  return parseJsonObject(text);
+}
+
+async function callAi({
+  prompt,
+  schema,
+  name,
+  provider,
+  apiKey,
+  model,
+}: {
+  prompt: string;
+  schema: Record<string, unknown>;
+  name: string;
+  provider: AiProvider;
+  apiKey: string;
+  model: string;
+}) {
+  if (provider === "mistral") {
+    return callMistral({ prompt, schema, name, apiKey, model });
+  }
+
+  return callOpenAI({ prompt, schema, name, apiKey, model });
 }
 
 function buildGenerationPrompt({
@@ -210,11 +351,15 @@ ${JSON.stringify(scenario)}`;
 }
 
 export async function POST(request: NextRequest) {
+  const { provider, apiKey, model } = getAiConfig();
+
   if (!apiKey) {
     return NextResponse.json(
       {
         error:
-          "Missing OPENAI_API_KEY or AI_API_KEY. Add one to .env.local and restart the dev server.",
+          provider === "mistral"
+            ? "Missing MISTRAL_API_KEY or AI_API_KEY. Add one to .env.local and restart the dev server."
+            : "Missing OPENAI_API_KEY or AI_API_KEY. Add one to .env.local and restart the dev server.",
       },
       { status: 400 },
     );
@@ -238,7 +383,7 @@ export async function POST(request: NextRequest) {
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const generated = await callOpenAI({
+      const generated = await callAi({
         prompt: buildGenerationPrompt({
           category,
           difficulty,
@@ -246,6 +391,9 @@ export async function POST(request: NextRequest) {
         }),
         schema: scenarioSchema,
         name: "preview_scenario",
+        provider,
+        apiKey,
+        model,
       });
       const normalized = normalizeScenario(generated, "ai_generated");
 
@@ -254,10 +402,13 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const quality = (await callOpenAI({
+      const quality = (await callAi({
         prompt: buildQualityPrompt(normalized.scenario),
         schema: qualityCheckSchema,
         name: "preview_scenario_quality_check",
+        provider,
+        apiKey,
+        model,
       })) as { passes?: boolean; issues?: string[] };
 
       if (!quality.passes) {

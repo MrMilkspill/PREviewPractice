@@ -19,12 +19,22 @@ Open the local URL printed by Next.js.
 Create `.env.local`:
 
 ```bash
-OPENAI_API_KEY=your_api_key_here
+AI_PROVIDER=mistral
+MISTRAL_API_KEY=your_mistral_key_here
+MISTRAL_MODEL=mistral-large-latest
+```
+
+OpenAI is also supported:
+
+```bash
+AI_PROVIDER=openai
+OPENAI_API_KEY=your_openai_key_here
 OPENAI_MODEL=gpt-5.5
 ```
 
-`AI_API_KEY` and `AI_MODEL` are also accepted. The frontend never receives the
-API key; generation runs through `src/app/api/generate-scenario/route.ts`.
+`AI_API_KEY` and `AI_MODEL` are accepted as generic fallbacks. The frontend never
+receives the API key; generation runs through
+`src/app/api/generate-scenario/route.ts`.
 
 The route requests strict JSON, validates the scenario, asks the model to
 self-check originality and quality, and retries once if validation or the quality
