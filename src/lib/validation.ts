@@ -38,6 +38,46 @@ function wordCount(value: string) {
   return value.trim().split(/\s+/).filter(Boolean).length;
 }
 
+function isMonotonicRatingPattern(ratings: Rating[]) {
+  const ascending = ratings.every(
+    (rating, index) => index === 0 || rating >= ratings[index - 1],
+  );
+  const descending = ratings.every(
+    (rating, index) => index === 0 || rating <= ratings[index - 1],
+  );
+
+  return ascending || descending;
+}
+
+function ratingDistributionErrors(responses: GeneratedScenario["responses"]) {
+  const ratings = responses.map((response) => response.target_rating);
+  const distinctRatings = new Set(ratings);
+  const maxSameRating = Math.max(
+    ...validRatings.map(
+      (rating) => ratings.filter((targetRating) => targetRating === rating).length,
+    ),
+  );
+  const errors: string[] = [];
+
+  if (!distinctRatings.has(1) || !distinctRatings.has(4)) {
+    errors.push("Scenario must include at least one 1 rating and one 4 rating.");
+  }
+
+  if (distinctRatings.size < 3) {
+    errors.push("Scenario must use at least three distinct target ratings.");
+  }
+
+  if (maxSameRating > Math.ceil(responses.length / 2)) {
+    errors.push("No single target rating should dominate the scenario.");
+  }
+
+  if (isMonotonicRatingPattern(ratings)) {
+    errors.push("Target ratings must not be ordered from weakest to strongest.");
+  }
+
+  return errors;
+}
+
 export function parseJsonObject(raw: string): unknown {
   try {
     return JSON.parse(raw);
@@ -90,8 +130,8 @@ export function normalizeScenario(
 
   if (!Array.isArray(candidate.responses)) {
     errors.push("Scenario is missing responses.");
-  } else if (candidate.responses.length < 5 || candidate.responses.length > 7) {
-    errors.push("Scenario must include 5 to 7 responses.");
+  } else if (candidate.responses.length < 4 || candidate.responses.length > 8) {
+    errors.push("Scenario must include 4 to 8 responses.");
   } else {
     candidate.responses.forEach((response, index) => {
       if (!isNonEmptyString(response.response_text)) {
@@ -120,6 +160,7 @@ export function normalizeScenario(
         errors.push(`Response ${index + 1} is missing an explanation.`);
       }
     });
+    errors.push(...ratingDistributionErrors(candidate.responses));
   }
 
   if (!isNonEmptyString(candidate.overall_takeaway)) {

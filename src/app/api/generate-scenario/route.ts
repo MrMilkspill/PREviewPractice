@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   DifficultyLevel,
   GenerationCategory,
+  Rating,
   generationCategories,
 } from "@/types/scenario";
+import { officialPracticeExams } from "@/data/officialPracticeExams";
 import { normalizeScenario, parseJsonObject } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -58,8 +60,8 @@ const scenarioSchema = {
     source_type: { type: "string", enum: ["ai_generated"] },
     responses: {
       type: "array",
-      minItems: 5,
-      maxItems: 7,
+      minItems: 4,
+      maxItems: 8,
       items: {
         type: "object",
         additionalProperties: false,
@@ -99,6 +101,87 @@ function isDifficulty(value: unknown): value is DifficultyLevel {
 
 function isCategory(value: unknown): value is GenerationCategory {
   return generationCategories.includes(value as GenerationCategory);
+}
+
+function pickOfficialLikeResponseCount() {
+  const counts = officialPracticeExams.flatMap((exam) => exam.itemCounts);
+  return counts[Math.floor(Math.random() * counts.length)] ?? 6;
+}
+
+function isMonotonicRatingPattern(ratings: Rating[]) {
+  const ascending = ratings.every(
+    (rating, index) => index === 0 || rating >= ratings[index - 1],
+  );
+  const descending = ratings.every(
+    (rating, index) => index === 0 || rating <= ratings[index - 1],
+  );
+
+  return ascending || descending;
+}
+
+function shuffledRatings(ratings: Rating[]) {
+  const nextRatings = [...ratings];
+
+  for (let index = nextRatings.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [nextRatings[index], nextRatings[swapIndex]] = [
+      nextRatings[swapIndex],
+      nextRatings[index],
+    ];
+  }
+
+  return nextRatings;
+}
+
+function pickOfficialLikeRatingPattern(responseCount: number) {
+  const patterns: Record<number, Rating[][]> = {
+    4: [
+      [1, 2, 3, 4],
+      [1, 2, 4, 4],
+      [1, 1, 3, 4],
+    ],
+    5: [
+      [1, 1, 2, 3, 4],
+      [1, 2, 2, 3, 4],
+      [1, 2, 3, 4, 4],
+    ],
+    6: [
+      [1, 1, 2, 2, 3, 4],
+      [1, 2, 2, 3, 4, 4],
+      [1, 1, 2, 3, 3, 4],
+    ],
+    7: [
+      [1, 1, 2, 2, 3, 4, 4],
+      [1, 1, 2, 3, 3, 4, 4],
+      [1, 2, 2, 2, 3, 4, 4],
+    ],
+    8: [
+      [1, 1, 2, 2, 3, 3, 4, 4],
+      [1, 1, 1, 2, 3, 3, 4, 4],
+      [1, 1, 2, 2, 2, 3, 4, 4],
+    ],
+  };
+  const options = patterns[responseCount] ?? patterns[6];
+  const pattern = options[Math.floor(Math.random() * options.length)] ?? [
+    1, 1, 2, 3, 3, 4,
+  ];
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const shuffledPattern = shuffledRatings(pattern);
+
+    if (!isMonotonicRatingPattern(shuffledPattern)) {
+      return shuffledPattern;
+    }
+  }
+
+  return shuffledRatings(pattern);
+}
+
+function ratingPatternMatches(actual: Rating[], expected: Rating[]) {
+  return (
+    actual.length === expected.length &&
+    actual.every((rating, index) => rating === expected[index])
+  );
 }
 
 function outputTextFromResponse(payload: unknown): string {
@@ -295,10 +378,14 @@ async function callAi({
 function buildGenerationPrompt({
   category,
   difficulty,
+  responseCount,
+  targetRatingPattern,
   similarTo,
 }: {
   category: GenerationCategory;
   difficulty: DifficultyLevel;
+  responseCount: number;
+  targetRatingPattern: Rating[];
   similarTo?: {
     title?: string;
     competency_tested?: string;
@@ -322,15 +409,25 @@ Requirements:
 - Difficulty should be ${difficulty}.
 - ${similarInstruction}
 - Use realistic situations involving students, patients, peers, supervisors, professors, volunteers, clinical teams, academic responsibilities, professionalism, communication, service, honesty, confidentiality, feedback, teamwork, cultural sensitivity, reliability, accountability, or conflict resolution.
+- Keep the scenario ordinary and plausible. The official style is usually a realistic school, clinic, lab, service, or peer-professionalism dilemma, not an emergency or rare edge case.
 - Test judgment rather than medical knowledge.
-- Include 5 to 7 response options.
+- Include exactly ${responseCount} response options.
 - Response options must match the concise official exam style: short imperative action statements, usually 6 to 18 words, with a hard maximum of 24 words and 150 characters.
 - Each response option should be one direct action or decision. Do not include rationales, internal thoughts, multiple clauses, or extra background in the response_text.
 - Use plain wording like "Ask...", "Tell...", "Remind...", "Continue...", "Report...", "Apologize...", or "Decline..." when natural. Avoid verbose coaching language.
 - Include target ratings using this scale: 1 Very Ineffective, 2 Ineffective, 3 Effective, 4 Very Effective.
-- Make response choices nuanced. Wrong answers should not be cartoonishly bad, and right answers should not be obvious.
+- Use this exact target_rating pattern in order for responses 1 through ${responseCount}: ${targetRatingPattern.join(", ")}.
+- Write each response option so its quality genuinely fits its assigned target_rating. Do not merely label a response with the requested rating if the action does not match that level.
+- Calibrate the target ratings like the official answer keys:
+  - Very effective responses address the central issue directly, respectfully, and promptly while preserving responsibilities, honesty, confidentiality, patient welfare, or teamwork.
+  - Effective responses are appropriate but incomplete, less immediate, less personally accountable, or miss one important stakeholder.
+  - Ineffective responses may be supportive or well-intended, but avoid the core issue, shift responsibility, make assumptions, delay necessary action, or only address part of the problem.
+  - Very ineffective responses violate obligations, ignore harm, act dishonestly, retaliate, stereotype, escalate inappropriately, or abandon a required responsibility.
+- The rating pattern must be balanced: include at least one 1 and one 4, use at least three distinct ratings, and do not order responses from worst to best or best to worst.
+- Build a realistic mix: one or two strong actions, one or two tempting-but-incomplete actions, and one or two clearly flawed actions. Do not make the longest response the best response.
+- Make response choices nuanced. Weak answers should still sound plausible at first glance, and strong answers should not be obvious just because they mention a supervisor.
 - Avoid illegal medical advice, rare edge cases, overly dramatic scenarios, and scenarios where every strong action is simply "tell the supervisor."
-- Explanations should be concise, specific, and should clarify why the target rating is better than adjacent ratings.
+- Explanations should mirror official rationale logic in original wording: concise, specific, and comparative. Explain what the response addresses, what it misses, and why the target rating is better than adjacent ratings.
 - Set source_type to "ai_generated".
 - Return only valid JSON. No markdown.`;
 }
@@ -341,15 +438,16 @@ function buildQualityPrompt(scenario: unknown) {
 Check whether:
 - It is original and not copied from AAMC.
 - It tests judgment instead of medical knowledge.
-- It has 5 to 7 response options.
+- It has 4 to 8 response options.
 - Each response option is concise official-exam style: one direct action, usually 6 to 18 words, never more than 24 words or 150 characters.
 - Response options do not explain their own rationale or bundle multiple actions into a long sentence.
-- The target ratings are reasonably balanced and not all the same.
+- The target ratings include at least one 1 and one 4, use at least three distinct ratings, and are not sorted from weakest to strongest or strongest to weakest.
 - Explanations are specific and useful.
 - Differences between ratings are clear.
 - The scenario is realistic for a premed or medical school context.
-- Wrong answers are nuanced rather than cartoonishly bad.
-- The strongest response is professional, timely, respectful, and accountable.
+- Weak answers are plausible but flawed rather than cartoonishly bad.
+- Effective-but-not-best answers are useful but incomplete.
+- The strongest responses are professional, timely, respectful, and accountable.
 
 Scenario JSON:
 ${JSON.stringify(scenario)}`;
@@ -387,11 +485,16 @@ export async function POST(request: NextRequest) {
   let lastError = "The generated scenario did not pass validation.";
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    const responseCount = pickOfficialLikeResponseCount();
+    const targetRatingPattern = pickOfficialLikeRatingPattern(responseCount);
+
     try {
       const generated = await callAi({
         prompt: buildGenerationPrompt({
           category,
           difficulty,
+          responseCount,
+          targetRatingPattern,
           similarTo: body.similarTo,
         }),
         schema: scenarioSchema,
@@ -404,6 +507,15 @@ export async function POST(request: NextRequest) {
 
       if (!normalized.scenario) {
         lastError = normalized.errors.join(" ");
+        continue;
+      }
+
+      const actualRatingPattern = normalized.scenario.responses.map(
+        (response) => response.target_rating,
+      );
+
+      if (!ratingPatternMatches(actualRatingPattern, targetRatingPattern)) {
+        lastError = "The generated target ratings did not follow the requested calibrated pattern.";
         continue;
       }
 
